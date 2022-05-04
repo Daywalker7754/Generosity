@@ -90,7 +90,8 @@ class BookingStatementHandler:
                         }
 
         if self.processed_entries.empty:  # initiale Befüllung
-            self.processed_entries = self.processed_entries.append(dict_to_save, ignore_index=True)
+            self.processed_entries = pd.concat([self.processed_entries, pd.DataFrame([dict_to_save])],
+                                               ignore_index=True)
 
         elif self.processed_entries["transactionID"].isin(
                 [transactionID]).any().any():  # wenn TA vorhanden, dann check ob doppeltes Datum
@@ -101,8 +102,6 @@ class BookingStatementHandler:
                                                ignore_index=True)
             self.qualitycheck = pd.concat([self.qualitycheck, pd.DataFrame([dict_to_save])], ignore_index=True)
 
-            # self.processed_entries = self.processed_entries.append(dict_to_save, ignore_index=True)
-            # self.qualitycheck = self.qualitycheck.append(dict_to_save, ignore_index=True)
 
     def book_statement(self, row, id, desc, sdesc, amount, soll, haben, account_id, quality_check_relevant, text=None):
         ''' Definiert den Buchungssatz, damit diese immer gleich aussehen '''
@@ -127,16 +126,15 @@ class BookingStatementHandler:
                 "HABEN": haben,
                 "QUALITYREL": quality_check_relevant}
 
-        self.journal = self.journal.append(dict, ignore_index=True)
+        self.journal = pd.concat([self.journal, pd.DataFrame([dict])], ignore_index=True)
         self.track_processing(account_id, int(row["transactionID"]), row["amount"], row["date"])
-
         logging.debug(f"Buchungssatz: {dict}")
 
         return dict
 
     def add_open_position(self, row):
         ''' Eröffnet manuell eine offene Position '''
-        self.fifo_positions = self.fifo_positions.append(row)  # Eintrag in den offenen Posten
+        self.fifo_positions = pd.concat([self.fifo_positions, pd.DataFrame([row])], ignore_index=True)
         self.fifo_positions.drop_duplicates(inplace=True)
 
         logging.debug(f"Ich eröffne die Position {row['transactionID']}")
@@ -614,7 +612,9 @@ class BookingStatementHandler:
                         position_open = True
                         open_in_depot = self.fifo_positions[self.fifo_positions["symbol"] == row["symbol"]]
                     else:
-                        self.fifo_positions = self.fifo_positions.append(row)
+                        # depricated: self.fifo_positions = self.fifo_positions.append(row) #TODO_ löschen
+                        self.fifo_positions = pd.concat([self.fifo_positions, pd.DataFrame([row])])
+
                         position_open = False
             else:
                 if self.fifo_positions.isin([row["activityDescription"]]).any().any():
