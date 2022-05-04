@@ -578,10 +578,11 @@ class BookingStatementHandler:
 
     def processing_check(self, processed_ids, expected_ids):
 
-        s = expected_ids.merge(processed_ids, on='transactionID', how='left')
-        # s = pd.merge(expected_ids, processed_ids, on=["transactionID", "date"], how='left')
-        s = s.loc[(s["amount"] != s["processedAmount"])]
-
+        try:
+            s = expected_ids.merge(processed_ids, on='transactionID', how='left')
+            s = s.loc[(s["amount"] != s["processedAmount"])]
+        except KeyError:
+            s = pd.DataFrame()
         return s
 
     def generate_single_statements(self, data):
@@ -622,7 +623,7 @@ class BookingStatementHandler:
                     open_in_depot = self.fifo_positions[
                         self.fifo_positions["activityDescription"] == row["activityDescription"]]
                 else:
-                    self.fifo_positions = self.fifo_positions.append(row)
+                    self.fifo_positions = pd.concat([self.fifo_positions, pd.DataFrame([row])])
                     position_open = False
 
             logging.debug(f"Das Ergebnis der Suche nach einem offenen Posten ist: {position_open}")
@@ -688,14 +689,14 @@ class BookingStatementHandler:
                         self.add_open_position(row)
 
                     # Verkauf von Aktien (Ausübung des Calls)
-                    if row["buySell"] == "SELL":  # TODO Testen mit MNST
+                    if row["buySell"] == "SELL":
                         if position_open == False:  # Falls es keine offenen Positionen gibt, eröffne ich einen Short
                             self.book_statement(row=row, id="ATG_0000004_0000004",  # TODO
                                                 desc="Zuteilung einer verkauften Optionsposition",
                                                 sdesc="keine offene Position => Short",
                                                 amount=row["amount"], soll=3500, haben=bank_account_id,
                                                 account_id=account_id,
-                                                quality_check_relevant=True)  # TODO, check if accounts are right for short
+                                                quality_check_relevant=True)
 
                         elif position_open == True:  # Falls offene Position, Short oder Long im Depot?
 
@@ -763,7 +764,6 @@ class BookingStatementHandler:
 
                     # Fall 1: No open position => create long entry
                     if position_open == False:
-                        # TODO: Wie buche ich das wieder aus? Der Gegenfall muss noch durchgespielt werden!
                         self.book_statement(row=row, id="Tbd",
                                             desc="Optionkauf", sdesc="keine offene Position",
                                             amount=row["amount"], soll=1300, haben=bank_account_id,
@@ -777,7 +777,6 @@ class BookingStatementHandler:
                                 account_id=account_id)
                         elif open_in_depot["tradeQuantity"].sum() > 0:
                             self.book_statement(row=row, id="Tbd",
-                                                # TODO, muss in dem Fall wie oben beschrieben noch getestet werden
                                                 desc="Optionkauf", sdesc="keine offene Position",
                                                 amount=row["amount"], soll=1300, haben=bank_account_id,
                                                 account_id=account_id, quality_check_relevant=True)
@@ -829,7 +828,7 @@ class BookingStatementHandler:
                 # die Käufe- und Verkäufe werden wie bei den Aktien unter Sell und Buy getätigt
 
                 # Zinsen
-                if (row["symbol"] == "") and "SHORT CFD INTEREST" in row["activityDescription"]:
+                if (row["symbol"] == "") and "CFD INTEREST" in row["activityDescription"]:
                     self.book_statement(row=row, id="ATG_0000010_0000005",
                                         desc="CFD-Handel", sdesc="Zinsaufwendung",
                                         amount=row["amount"], soll=7300, haben=bank_account_id, account_id=account_id,
@@ -897,14 +896,14 @@ class BookingStatementHandler:
                 if row["assetCategory"] == "CASH":
                     if row["amount"] > 0:
                         self.book_statement(row=row, id="tbd",
-                                            # TODO: neuer Fall von Gernot, Konto muss noch geprüft werden ob richtig
+                                            # TODO: neuer Fall, Konto muss noch geprüft werden ob richtig
                                             desc="Währungsumrechnung", sdesc="Verbuchung des Gewinns",
                                             amount=row["amount"], soll=bank_account_id, haben=4840,
                                             account_id=account_id,
                                             quality_check_relevant=True)
                     elif row["amount"] < 0:
                         self.book_statement(row=row, id="tbd",
-                                            # TODO: neuer Fall von Gernot, Konto muss noch geprüft werden ob richtig
+                                            # TODO: neuer Fall, Konto muss noch geprüft werden ob richtig
                                             desc="Währungsumrechnung", sdesc="Verbuchung des Verlusts",
                                             amount=row["amount"], soll=bank_account_id, haben=6880,
                                             account_id=account_id,
@@ -1117,8 +1116,8 @@ class BookingStatementHandler:
             # list_to_check = [148003324]
             # data = data.loc[data["transactionID"].isin(list_to_check)]
 
-            list_to_check = ["STK", ]
-            data = data.loc[data["assetCategory"].isin(list_to_check)]
+            # list_to_check = ["CFD", ]
+            # data = data.loc[data["assetCategory"].isin(list_to_check)]
 
             # Schritt 3:
             # Nach den Veränderungen sortiere ich nach dem SettleDate und der TransaktionsID um die richtige
@@ -1162,7 +1161,7 @@ class BookingStatementHandler:
             # Ausgabe des Ergebnisses
             print(f"Qualitätscheck Validierung: {quality_check}, "
                   f"die Journalsummer ist {journal_data_amount} und "
-                  f"die der verabrbeiteten Daten ist {modified_data_amount} ")
+                  f"die der verabrbeiteten Daten ist {modified_data_amount}, Account {account}")
 
             # Schritt 6.2. - Prüfung ob alle Zeilen verarbeitet wurden
             # Die Daten, die in den "modified data" waren und nicht in den processed IDs aufgenommen wurden
