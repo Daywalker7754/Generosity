@@ -7,7 +7,7 @@ import pandas as pd
 
 from src.PathHandler import PathHandler
 
-logging.basicConfig(level=logging.ERROR, filename='LoggingFile_BookingStatement.log')
+logging.basicConfig(level=logging.ERROR)
 debug = False
 save_to_excel = True
 
@@ -449,6 +449,31 @@ class BookingStatementHandler:
                                             amount=result, soll=7210, haben=bank_account_id, account_id=account_id,
                                             quality_check_relevant=False)
 
+                if (row["assetCategory"] == "OPT" or row["assetCategory"] == "FOP") and direction == "SELLTOCLOSESHORT":
+                    if identifier == "p":
+                        self.book_statement(row=row, id="ATG_0000001_0000002",
+                                            desc="Schließen einer gekauften Optionsposition",  # TODO-Check
+                                            sdesc="Ausbuchen der Verbindlichkeit",
+                                            amount=amount_to_sell, soll=3500, haben=bank_account_id,
+                                            account_id=account_id, quality_check_relevant=True)
+                        self.book_statement(row=row, id="ATG_0000001_0000003",
+                                            desc="Schließen einer gekauften Optionsposition",
+                                            sdesc="Verbuchen des Gewinns",
+                                            amount=result, soll=3500, haben=4830, account_id=account_id,
+                                            quality_check_relevant=False)
+
+                    if identifier == "l":
+                        self.book_statement(row=row, id="ATG_0000001_0000002",
+                                            desc="Schließen einer gekauften Optionsposition",  # TODO-Check
+                                            sdesc="Ausbuchen der Verbindlichkeit",
+                                            amount=amount_to_sell, soll=3500, haben=bank_account_id,
+                                            account_id=account_id, quality_check_relevant=True)
+                        self.book_statement(row=row, id="ATG_0000001_0000003",
+                                            desc="Schließen einer gekauften Optionsposition",
+                                            sdesc="Verbuchen des Verlusts",
+                                            amount=result, soll=7210, haben=bank_account_id, account_id=account_id,
+                                            quality_check_relevant=False)
+
         return stock_adjustment, restbuchwert, einnahmen
 
     def account_closure(self, working_dict, soll_account, haben_account, target_soll, target_haben,
@@ -768,6 +793,8 @@ class BookingStatementHandler:
                                             desc="Optionkauf", sdesc="keine offene Position",
                                             amount=row["amount"], soll=1300, haben=bank_account_id,
                                             account_id=account_id, quality_check_relevant=True)
+                        # hier muss ich die offene Position manuell hinterlegen
+                        self.add_open_position(row)
 
                     if position_open == True:
                         if open_in_depot["tradeQuantity"].sum() <= 0:
@@ -777,9 +804,11 @@ class BookingStatementHandler:
                                 account_id=account_id)
                         elif open_in_depot["tradeQuantity"].sum() > 0:
                             self.book_statement(row=row, id="Tbd",
-                                                desc="Optionkauf", sdesc="keine offene Position",
+                                                desc="Optionkauf", sdesc="Erhöhung der bestehenden Long-Position",
                                                 amount=row["amount"], soll=1300, haben=bank_account_id,
                                                 account_id=account_id, quality_check_relevant=True)
+                            # hier muss ich die offene Position manuell hinterlegen
+                            self.add_open_position(row)
 
                 # Gewinn- und Verlustberechnung CFD
                 elif row["assetCategory"] == "CFD":
@@ -995,9 +1024,9 @@ class BookingStatementHandler:
                         self.add_open_position(row)
 
                     # TODO: Position erhöhen, oder Teilposition schließen
-                    if position_open == True:
+                    elif position_open == True:
 
-                        # If I'm already short, I need to increase my Position
+                        # Wenn ich schon short bin, muss ich meine Position erhöhen
                         if open_in_depot["tradeQuantity"].sum() < 0:
                             self.book_statement(row=row, id="ATG_0000002_0000002",
                                                 desc="Eröffnen einer Stillhalterposition",
@@ -1008,9 +1037,10 @@ class BookingStatementHandler:
                             self.add_open_position(row)  # Add entry to open position
 
                         # If I'm long in the option, I need to close it FIFO
-                        if open_in_depot["tradeQuantity"].sum() > 0:
+                        elif open_in_depot["tradeQuantity"].sum() > 0:
                             stock_adjustment, restbuchwert, einnahmen = self.close_position_fifo(
-                                "SELL", row, open_in_depot, stock_adjustment, restbuchwert, einnahmen, bank_account_id,
+                                "SELLTOCLOSESHORT", row, open_in_depot, stock_adjustment, restbuchwert, einnahmen,
+                                bank_account_id,
                                 account_id=account_id)
 
                 elif (row["assetCategory"] == "STK"):
@@ -1113,10 +1143,10 @@ class BookingStatementHandler:
             bank_transfers = data[(data["activityCode"] == "WITH") | (data["activityCode"] == "DEP")]
             data = data[~data.isin(bank_transfers)].dropna()
 
-            # list_to_check = [148003324]
+            # list_to_check = [48680470, 64144476] #, , 48680470, 64144476
             # data = data.loc[data["transactionID"].isin(list_to_check)]
 
-            # list_to_check = ["CFD", ]
+            # list_to_check = ["STK"]
             # data = data.loc[data["assetCategory"].isin(list_to_check)]
 
             # Schritt 3:
