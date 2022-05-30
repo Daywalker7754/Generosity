@@ -16,3 +16,13 @@ Um das Programm zu nutzen, müssen die folgenden Schritte durchgeführt werden:
 3.	Anpassen der configuration.ini
 4.	Ausführen des Programms
 5.	Prüfen der Ergebnisse
+
+
+How-To auf Windows:
+1. Download des Ordners dist
+2. Anlegen der Ordner "import", "export" und "working_files" innerhalb des Ordners dist
+3. Download der Interactive Brokers XML-Datei “Statement of Funds” (dt. Kapitalflussbericht) für ein abgeschlossenes Geschäftsjahr
+4. Speichern der IB-Download-Datei in dem Order „import“
+5. Anpassen der configuration.ini mit dem Namen der download-datei und den zu verwendeten IB-Konten
+6. Ausführen der Main-exe im dist-Ordner
+7. Prüfen der Ergebnisse. Diese werden im Ordner "export" gespeichert
