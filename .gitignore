@@ -10,7 +10,6 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -132,3 +131,5 @@ dmypy.json
 working_files/*
 import/*
 export/*
+test_data/
+configuration.ini

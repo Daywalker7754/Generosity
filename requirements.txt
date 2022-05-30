@@ -15,6 +15,7 @@ eventkit==0.8.9
 fake-useragent==0.1.11
 fonttools==4.32.0
 forex-python==1.8
+future==0.18.2
 google-api-core==2.7.1
 google-api-python-client==2.43.0
 google-auth==2.6.3
@@ -45,9 +46,11 @@ pandas-datareader==0.10.0
 pandas-ta==0.3.14b0
 parse==1.19.0
 pdfkit==1.0.0
+pefile==2021.9.3
 Pillow==9.1.0
 plotly==5.7.0
 protobuf==3.20.0
+py2exe==0.11.1.0
 pyaes==1.6.1
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
