@@ -1,4 +1,5 @@
 import logging
+import os
 
 from ConfigHandler import ConfigHandler
 from src.BookingStatementHandler import BookingStatementHandler
@@ -12,6 +13,7 @@ imp = ImportHandler()
 config = ConfigHandler()
 
 # Importieren des Kapitalflussberichts - aktuell nur manuell
+print(os.getcwd())
 import_filename = config.get_statement_of_funds_name()
 imp.import_ib_xml_manual(import_filename)
 

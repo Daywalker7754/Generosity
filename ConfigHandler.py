@@ -37,8 +37,15 @@ class ConfigHandler:
 
     def get_statement_of_funds_name(self):
 
-        settings = self.read_config()
-        name = settings["Import"]["Dateiname Kapitalflussbericht"]
+        try:
+            print(self.dir)
+
+            settings = self.read_config()
+            name = settings["Import"]["Dateiname Kapitalflussbericht"]
+
+        except KeyError:
+            print(self.dir)
+
         return name
 
     def get_ib_accounts(self):
