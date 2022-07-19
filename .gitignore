@@ -18,6 +18,7 @@ parts/
 sdist/
 var/
 wheels/
+test_cases/
 pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/
@@ -131,3 +132,4 @@ import/*
 export/*
 test_data/
 configuration.ini
+/test_cases/

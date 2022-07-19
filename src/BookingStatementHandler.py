@@ -7,8 +7,8 @@ import pandas as pd
 
 from src.PathHandler import PathHandler
 
-logging.basicConfig(level=logging.ERROR)
-debug = False
+logging.basicConfig(level=logging.DEBUG)
+debug = True
 save_to_excel = True
 
 
@@ -149,6 +149,9 @@ class BookingStatementHandler:
     def calculate_p_l(self, direction, amount_in_depot, amount_based_on_direction):
         ''' Berechnet den Gewinn und Verlust '''
 
+        amount_in_depot = round(amount_in_depot, 8)
+        amount_based_on_direction = round(amount_based_on_direction, 8)
+
         if direction == "BUY":
             result = amount_in_depot - amount_based_on_direction
         elif direction == "BUYTOCLOSESHORT":
@@ -157,7 +160,6 @@ class BookingStatementHandler:
 
         else:
             result = amount_based_on_direction - amount_in_depot
-
         if result < 0:
             identifier = "l"
         elif result > 0:
@@ -364,7 +366,7 @@ class BookingStatementHandler:
 
                         self.book_statement(row=row, id="ATG_0000006_0000002",
                                             desc="Aktienverkauf", sdesc="Abgang des Wertpapiers",
-                                            amount=amount_in_depot_entry, soll=4852, haben=bank_account_id,
+                                            amount=amount_in_depot_entry, soll=4858, haben=1510,
                                             account_id=account_id, quality_check_relevant=False)
 
                     if identifier == "l":
@@ -378,6 +380,13 @@ class BookingStatementHandler:
                                             amount=amount_in_depot_entry, soll=6898, haben=1510, account_id=account_id,
                                             quality_check_relevant=False)
 
+                    if identifier == "even":
+                        self.book_statement(row=row, id="ATG_0000006_0000020",
+                                            desc="Aktienverkauf", sdesc="Schließen eines Long ohne Gewinn oder Verlust",
+                                            amount=amount_in_depot_entry, soll=bank_account_id, haben=1510,
+                                            account_id=account_id,
+                                            quality_check_relevant=True)
+
                 if row["assetCategory"] == "STK" and direction == "BUY":
                     if identifier == "p":
                         self.book_statement(row=row, id="ATG_0000005_0000002 ",
@@ -387,7 +396,7 @@ class BookingStatementHandler:
 
                         self.book_statement(row=row, id="ATG_0000005_0000003",
                                             desc="Aktienkauf", sdesc="Abgang des Wertpapiers",
-                                            amount=amount_in_depot_entry, soll=3500, haben=4858, account_id=account_id,
+                                            amount=amount_in_depot_entry, soll=1510, haben=4858, account_id=account_id,
                                             quality_check_relevant=False)
 
                     if identifier == "l":
@@ -398,8 +407,9 @@ class BookingStatementHandler:
 
                         self.book_statement(row=row, id="ATG_0000005_0000005",
                                             desc="Aktienverkauf", sdesc="Abgang des Wertpapiers",
-                                            amount=amount_in_depot_entry, soll=6898, haben=1510, account_id=account_id,
+                                            amount=amount_in_depot_entry, soll=1510, haben=6898, account_id=account_id,
                                             quality_check_relevant=False)
+
 
                 if row["assetCategory"] == "STK" and direction == "BUYTOCLOSESHORT":
                     if identifier == "p":
@@ -410,19 +420,27 @@ class BookingStatementHandler:
 
                         self.book_statement(row=row, id="ATG_0000005_0000003",
                                             desc="Aktienkauf", sdesc="Abgang des Wertpapiers",
-                                            amount=amount_in_depot_entry, soll=3500, haben=4858, account_id=account_id,
+                                            amount=amount_in_depot_entry, soll=1500, haben=4858, account_id=account_id,
                                             quality_check_relevant=False)
 
                     if identifier == "l":
-                        self.book_statement(row=row, id="ATG_0000005_0000004",
+                        self.book_statement(row=row, id="ATG_0000005_0000012",
                                             desc="Aktienverkauf", sdesc="Verlustbuchung",
                                             amount=amount_to_sell, soll=6892, haben=bank_account_id,
                                             account_id=account_id, quality_check_relevant=True)
 
-                        self.book_statement(row=row, id="ATG_0000005_0000005",
+                        self.book_statement(row=row, id="ATG_0000005_0000011",
                                             desc="Aktienverkauf", sdesc="Abgang des Wertpapiers",
-                                            amount=amount_in_depot_entry, soll=6898, haben=1510, account_id=account_id,
+                                            amount=amount_in_depot_entry, soll=1510, haben=6898, account_id=account_id,
                                             quality_check_relevant=False)
+
+                    if identifier == "even":
+                        self.book_statement(row=row, id="ATG_0000005_0000010",
+                                            desc="Aktienverkauf",
+                                            sdesc="Schließen eines Shorts ohne Gewinn oder Verlust",
+                                            amount=amount_in_depot_entry, soll=1510, haben=1810, account_id=account_id,
+                                            # changes test cycle 19.7
+                                            quality_check_relevant=True)
 
                 if (row["assetCategory"] == "OPT" or row["assetCategory"] == "FOP") and direction == "BUYTOCLOSESHORT":
                     if identifier == "p":
@@ -1046,8 +1064,8 @@ class BookingStatementHandler:
                 elif (row["assetCategory"] == "STK"):
                     if position_open == False:  # Falls es keine offenen Positionen gibt, eröffne ich einen Short
                         self.book_statement(row=row, id="ATG_0000006_0000005",
-                                            desc="Aktienverkauf", sdesc="keine offene Position",
-                                            amount=row["amount"], soll=3500, haben=bank_account_id,
+                                            desc="Aktienverkauf", sdesc="Sell-Short, ohne offene Position",
+                                            amount=row["amount"], soll=bank_account_id, haben=1510,
                                             account_id=account_id, quality_check_relevant=True)
                         self.add_open_position(row)
 
@@ -1057,7 +1075,7 @@ class BookingStatementHandler:
                         if open_in_depot["tradeQuantity"].sum() < 0:
                             self.book_statement(row=row, id="ATG_0000006_0000005",
                                                 desc="Aktienverkauf", sdesc="Erhöhung der Shortposition",
-                                                amount=row["amount"], soll=3500, haben=bank_account_id,
+                                                amount=row["amount"], soll=bank_account_id, haben=1500,
                                                 account_id=account_id, quality_check_relevant=True)
 
                             self.add_open_position(row)
@@ -1143,7 +1161,7 @@ class BookingStatementHandler:
             bank_transfers = data[(data["activityCode"] == "WITH") | (data["activityCode"] == "DEP")]
             data = data[~data.isin(bank_transfers)].dropna()
 
-            # list_to_check = [48680470, 64144476] #, , 48680470, 64144476
+            # list_to_check = [630804647, 630811767]
             # data = data.loc[data["transactionID"].isin(list_to_check)]
 
             # list_to_check = ["STK"]
