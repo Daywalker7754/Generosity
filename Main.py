@@ -15,6 +15,7 @@ config = ConfigHandler()
 # Importieren des Kapitalflussberichts - aktuell nur manuell
 print(os.getcwd())
 import_filename = config.get_statement_of_funds_name()
+print(import_filename)
 imp.import_ib_xml_manual(import_filename)
 
 # Erstellen der Buchungssätze

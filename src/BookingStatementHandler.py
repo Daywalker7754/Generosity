@@ -7,8 +7,8 @@ import pandas as pd
 
 from src.PathHandler import PathHandler
 
-logging.basicConfig(level=logging.DEBUG)
-debug = True
+logging.basicConfig(level=logging.ERROR)
+debug = False
 save_to_excel = True
 
 
@@ -464,8 +464,15 @@ class BookingStatementHandler:
                         self.book_statement(row=row, id="ATG_0000001_0000003",
                                             desc="Schließen einer verkauften Optionsposition",
                                             sdesc="Verbuchen des Verlusts",
-                                            amount=result, soll=7210, haben=bank_account_id, account_id=account_id,
+                                            amount=result, soll=6300, haben=3500, account_id=account_id,
                                             quality_check_relevant=False)
+
+                    if identifier == "even":
+                        self.book_statement(row=row, id="ATG_0000001_0000001",
+                                            desc="Schließen einer verkauften Optionsposition",
+                                            sdesc="Rückbuchen ohne Gewinn oder Verlust",
+                                            amount=amount_to_sell, soll=3500, haben=bank_account_id,
+                                            account_id=account_id, quality_check_relevant=True)
 
                 if (row["assetCategory"] == "OPT" or row["assetCategory"] == "FOP") and direction == "SELLTOCLOSESHORT":
                     if identifier == "p":
@@ -705,7 +712,7 @@ class BookingStatementHandler:
                         self.book_statement(row=row, id="ATG_0000004_0000002",
                                             desc="Zuteilung einer verkauften Optionsposition",
                                             sdesc="", amount=abs(open_in_depot["amount"].iloc[0]), soll=3500,
-                                            haben=1510, account_id=account_id, quality_check_relevant=False)
+                                            haben=4830, account_id=account_id, quality_check_relevant=False)
 
                         self.close_open_position(open_in_depot["transactionID"].iloc[0])
 
@@ -734,10 +741,10 @@ class BookingStatementHandler:
                     # Verkauf von Aktien (Ausübung des Calls)
                     if row["buySell"] == "SELL":
                         if position_open == False:  # Falls es keine offenen Positionen gibt, eröffne ich einen Short
-                            self.book_statement(row=row, id="ATG_0000004_0000004",  # TODO
+                            self.book_statement(row=row, id="ATG_0000004_0000004",
                                                 desc="Zuteilung einer verkauften Optionsposition",
                                                 sdesc="keine offene Position => Short",
-                                                amount=row["amount"], soll=3500, haben=bank_account_id,
+                                                amount=row["amount"], soll=1510, haben=bank_account_id,
                                                 account_id=account_id,
                                                 quality_check_relevant=True)
 
@@ -748,7 +755,7 @@ class BookingStatementHandler:
                                 self.book_statement(row=row, id="ATG_0000004_0000004",
                                                     desc="Zuteilung einer verkauften Optionsposition",
                                                     sdesc="Erhöhung der Shortposition",
-                                                    amount=row["amount"], soll=3500, haben=bank_account_id,
+                                                    amount=row["amount"], soll=1500, haben=bank_account_id,
                                                     account_id=account_id, quality_check_relevant=True)
 
                                 self.add_open_position(row)  # Eintrag in den offenen Posten
@@ -889,30 +896,43 @@ class BookingStatementHandler:
                     if row["amount"] < 0:
                         self.book_statement(row=row, id="ATG_0000010_0000004",
                                             desc="CFD-Handel", sdesc="Kursverlust",
-                                            amount=row["amount"], soll=bank_account_id, haben=6880,
+                                            amount=row["amount"], soll=6880, haben=bank_account_id,
                                             account_id=account_id, quality_check_relevant=True,
                                             text=row["activityDescription"])
                     # Kursgewinne
                     elif row["amount"] > 0:
                         self.book_statement(row=row, id="ATG_0000010_0000003",
                                             desc="CFD-Handel", sdesc="Kursgewinn",
-                                            amount=row["amount"], soll=4840, haben=bank_account_id,
+                                            amount=row["amount"], soll=bank_account_id, haben=4840,
                                             account_id=account_id, quality_check_relevant=True,
                                             text=row["activityDescription"])
                     else:
                         logging.error("Der Trade konnte nicht verbucht werden!")
 
             elif row["activityCode"] == "CINT":  # Credit Interest on cash balances
-                self.book_statement(row=row, id="tbd",  # TODO
-                                    desc="Zinsaufwendungen", sdesc="USD Debit Interest",
-                                    amount=row["amount"], soll=7300, haben=bank_account_id, account_id=account_id,
-                                    quality_check_relevant=True, text=row["activityDescription"])
+
+                if row["amount"] <= 0:
+                    self.book_statement(row=row, id="ATG_0000009_0000001",
+                                        desc="Zinsaufwendungen", sdesc="Bezahlte Zinsen",
+                                        amount=row["amount"], soll=7300, haben=bank_account_id, account_id=account_id,
+                                        quality_check_relevant=True, text=row["activityDescription"])
+                elif row["amount"] > 0:
+                    self.book_statement(row=row, id="ATG_0000009_0000002",
+                                        desc="Zinsaufwendungen", sdesc="Erhaltene Zinsen",
+                                        amount=row["amount"], soll=bank_account_id, haben=7100, account_id=account_id,
+                                        quality_check_relevant=True, text=row["activityDescription"])
 
             elif row["activityCode"] == "DINT":
-                self.book_statement(row=row, id="ATG_0000009_0000001",
-                                    desc="Zinsaufwendungen", sdesc="",
-                                    amount=row["amount"], soll=7300, haben=bank_account_id, account_id=account_id,
-                                    quality_check_relevant=True, text=row["activityDescription"])
+                if row["amount"] <= 0:
+                    self.book_statement(row=row, id="ATG_0000009_0000001",
+                                        desc="Zinsaufwendungen", sdesc="Bezahlte Zinsen",
+                                        amount=row["amount"], soll=7300, haben=bank_account_id, account_id=account_id,
+                                        quality_check_relevant=True, text=row["activityDescription"])
+                elif row["amount"] > 0:
+                    self.book_statement(row=row, id="ATG_0000009_0000002",
+                                        desc="Zinsaufwendungen", sdesc="Erhaltene Zinsen",
+                                        amount=row["amount"], soll=bank_account_id, haben=7100, account_id=account_id,
+                                        quality_check_relevant=True, text=row["activityDescription"])
 
             elif row["activityCode"] == "DIV":
                 self.book_statement(row=row, id="ATG_0000008_0000001",
@@ -970,10 +990,18 @@ class BookingStatementHandler:
                                     quality_check_relevant=True)
 
             elif row["activityCode"] == "OFEE":
-                self.book_statement(row=row, id="ATG_0000007_0000001",
-                                    desc="Marktdatenkauf", sdesc="",
-                                    amount=row["amount"], soll=6300, haben=bank_account_id, account_id=account_id,
-                                    quality_check_relevant=True)
+
+                if row["amount"] <= 0:
+                    self.book_statement(row=row, id="ATG_0000007_0000001",
+                                        desc="Marktdatengebuehren", sdesc="Verbuchung der Kosten",
+                                        amount=row["amount"], soll=6300, haben=bank_account_id, account_id=account_id,
+                                        quality_check_relevant=True)
+
+                elif row["amount"] > 0:
+                    self.book_statement(row=row, id="ATG_0000007_0000002",
+                                        desc="Marktdatengebuehren", sdesc="Verbuchung der Gutschrift",
+                                        amount=row["amount"], soll=bank_account_id, haben=6300, account_id=account_id,
+                                        quality_check_relevant=True)
 
             elif row["activityCode"] == "PIL":
                 self.book_statement(row=row, id="",
@@ -1016,12 +1044,12 @@ class BookingStatementHandler:
                     # direkter Ebene zu meinem Depot machen will, muss ich die Positionan manuell eröffnen und
                     # schließen
                     if row["amount"] < 0:
-                        self.book_statement(row=row, id="tbd",
+                        self.book_statement(row=row, id="ATG_0000010_0000020",
                                             desc="Futures-Handel", sdesc="Verlust",
                                             amount=row["amount"], soll=6300, haben=bank_account_id,
                                             account_id=account_id, quality_check_relevant=True)
                     elif row["amount"] > 0:
-                        self.book_statement(row=row, id="tbd",
+                        self.book_statement(row=row, id="ATG_0000010_0000025",
                                             desc="Futures-Handel", sdesc="Gewinn",
                                             amount=row["amount"], soll=bank_account_id, haben=4905,
                                             account_id=account_id, quality_check_relevant=True)
@@ -1093,8 +1121,8 @@ class BookingStatementHandler:
 
             elif row["activityCode"] == "STAX":
 
-                self.book_statement(row=row, id="ATG_0000002_0000001",
-                                    desc="Marktdatenkauf", sdesc="Steuerverbuchung",
+                self.book_statement(row=row, id="ATG_0000007_0000003",
+                                    desc="Marktdatengebuehren", sdesc="Steuerverbuchung",
                                     amount=row["amount"], soll=6300, haben=bank_account_id, account_id=account_id,
                                     quality_check_relevant=True)
 
@@ -1286,8 +1314,8 @@ class BookingStatementHandler:
                     accounting_simulation_final.to_excel(writer, sheet_name="Acc_Sim_3", index=False)
 
                 # Not processed
-                if not final_check.empty:
-                    final_check.to_excel(writer, sheet_name="Not processed", index=False)
+                # if not final_check.empty:
+                #    final_check.to_excel(writer, sheet_name="Not processed", index=False)
 
                 writer.save()
 

@@ -9,6 +9,7 @@ class ConfigHandler:
     def __init__(self):
         paths = PathHandler()
         self.dir = paths.get_working_dir()
+        self.dir_tests = os.path.join(self.dir, "test_cases", "test_files")
 
     def write_config(self):
         config = ConfigParser()
@@ -38,12 +39,11 @@ class ConfigHandler:
     def get_statement_of_funds_name(self):
 
         try:
-            print(self.dir)
-
             settings = self.read_config()
             name = settings["Import"]["Dateiname Kapitalflussbericht"]
 
         except KeyError:
+            name = ""
             print(self.dir)
 
         return name
