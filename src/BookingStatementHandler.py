@@ -7,7 +7,7 @@ import pandas as pd
 
 from src.PathHandler import PathHandler
 
-logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.DEBUG)
 debug = False
 save_to_excel = True
 
@@ -65,7 +65,7 @@ class BookingStatementHandler:
         '''
 
         # Basierend auf dem Code
-        list_to_exclude = ["DINT", "DIV", "FRTAX", "OFEE", "STAX", "FUT", "CFD", "CINT"]
+        list_to_exclude = ["DINT", "DIV", "FRTAX", "OFEE", "STAX", "FUT", "CFD", "CINT", "BFEE"]
         try:
             open_trades_cleaned = open_trades[~open_trades["activityCode"].isin(list_to_exclude)]
         except KeyError:
@@ -101,7 +101,6 @@ class BookingStatementHandler:
             self.processed_entries = pd.concat([self.processed_entries, pd.DataFrame([dict_to_save])],
                                                ignore_index=True)
             self.qualitycheck = pd.concat([self.qualitycheck, pd.DataFrame([dict_to_save])], ignore_index=True)
-
 
     def book_statement(self, row, id, desc, sdesc, amount, soll, haben, account_id, quality_check_relevant, text=None):
         ''' Definiert den Buchungssatz, damit diese immer gleich aussehen '''
@@ -410,7 +409,6 @@ class BookingStatementHandler:
                                             amount=amount_in_depot_entry, soll=1510, haben=6898, account_id=account_id,
                                             quality_check_relevant=False)
 
-
                 if row["assetCategory"] == "STK" and direction == "BUYTOCLOSESHORT":
                     if identifier == "p":
                         self.book_statement(row=row, id="ATG_0000005_0000002 ",
@@ -420,7 +418,7 @@ class BookingStatementHandler:
 
                         self.book_statement(row=row, id="ATG_0000005_0000003",
                                             desc="Aktienkauf", sdesc="Abgang des Wertpapiers",
-                                            amount=amount_in_depot_entry, soll=1500, haben=4858, account_id=account_id,
+                                            amount=amount_in_depot_entry, soll=1510, haben=4858, account_id=account_id,
                                             quality_check_relevant=False)
 
                     if identifier == "l":
@@ -457,8 +455,8 @@ class BookingStatementHandler:
 
                     if identifier == "l":
                         self.book_statement(row=row, id="ATG_0000001_0000002",
-                                            desc="Schließen einer verkauften Optionsposition",
-                                            sdesc="Ausbuchen der Verbindlichkeit",
+                                            dsc="Schließen einer verkauften Optionsposition",
+                                            sesc="Ausbuchen der Verbindlichkeit",
                                             amount=amount_to_sell, soll=3500, haben=bank_account_id,
                                             account_id=account_id, quality_check_relevant=True)
                         self.book_statement(row=row, id="ATG_0000001_0000003",
@@ -474,17 +472,49 @@ class BookingStatementHandler:
                                             amount=amount_to_sell, soll=3500, haben=bank_account_id,
                                             account_id=account_id, quality_check_relevant=True)
 
-                if (row["assetCategory"] == "OPT" or row["assetCategory"] == "FOP") and direction == "SELLTOCLOSESHORT":
-                    if identifier == "p":
-                        self.book_statement(row=row, id="ATG_0000001_0000002",
-                                            desc="Schließen einer gekauften Optionsposition",  # TODO-Check
-                                            sdesc="Ausbuchen der Verbindlichkeit",
-                                            amount=amount_to_sell, soll=3500, haben=bank_account_id,
-                                            account_id=account_id, quality_check_relevant=True)
-                        self.book_statement(row=row, id="ATG_0000001_0000003",
-                                            desc="Schließen einer gekauften Optionsposition",
-                                            sdesc="Verbuchen des Gewinns",
-                                            amount=result, soll=3500, haben=4830, account_id=account_id,
+            if (row["assetCategory"] == "OPT" or row["assetCategory"] == "FOP") and direction == "SELLTOCLOSELONG":
+                if identifier == "p":
+                    self.book_statement(row=row, id="ATG_0000002_0000005",
+                                        desc="Schließen einer gekauften Optionsposition",
+                                        sdesc="Ausbuchen des Ausübungsrechts",
+                                        amount=amount_to_sell, soll=bank_account_id, haben=1510,
+                                        account_id=account_id, quality_check_relevant=True)
+                    self.book_statement(row=row, id="ATG_0000002_0000005",
+                                        desc="Schließen einer verkauften Optionsposition",
+                                        sdesc="Verbuchen des Gewinns",
+                                        amount=result, soll=1510, haben=4830, account_id=account_id,
+                                        quality_check_relevant=False)
+
+                if identifier == "l":
+                    self.book_statement(row=row, id="ATG_0000002_0000006",
+                                        desc="Schließen einer gekauften Optionsposition",
+                                        sdesc="Ausbuchen des Ausübungsrechts",
+                                        amount=amount_to_sell, soll=bank_account_id, haben=1510,
+                                        account_id=account_id, quality_check_relevant=True)
+                    self.book_statement(row=row, id="ATG_0000002_0000006",
+                                        desc="Schließen einer verkauften Optionsposition",
+                                        sdesc="Verbuchen des Verlusts",
+                                        amount=result, soll=6300, haben=1510, account_id=account_id,
+                                        quality_check_relevant=False)
+
+                if identifier == "even":
+                    self.book_statement(row=row, id="ATG_0000002_0000004",
+                                        desc="Schließen einer gekauften Optionsposition",
+                                        sdesc="Rückbuchen ohne Gewinn oder Verlust",
+                                        amount=amount_to_sell, soll=bank_account_id, haben=1510,
+                                        account_id=account_id, quality_check_relevant=True)
+
+            if (row["assetCategory"] == "OPT" or row["assetCategory"] == "FOP") and direction == "SELLTOCLOSESHORT":
+                if identifier == "p":
+                    self.book_statement(row=row, id="ATG_0000001_0000002",
+                                        desc="Schließen einer gekauften Optionsposition",  # TODO-Check
+                                        sdesc="Ausbuchen der Verbindlichkeit",
+                                        amount=amount_to_sell, soll=3500, haben=bank_account_id,
+                                        account_id=account_id, quality_check_relevant=True)
+                    self.book_statement(row=row, id="ATG_0000001_0000003",
+                                        desc="Schließen einer gekauften Optionsposition",
+                                        sdesc="Verbuchen des Gewinns",
+                                        amount=result, soll=3500, haben=4830, account_id=account_id,
                                             quality_check_relevant=False)
 
                     if identifier == "l":
@@ -663,10 +693,26 @@ class BookingStatementHandler:
                         position_open = True
                         open_in_depot = self.fifo_positions[self.fifo_positions["symbol"] == row["symbol"]]
                     else:
-                        # depricated: self.fifo_positions = self.fifo_positions.append(row) #TODO_ löschen
-                        self.fifo_positions = pd.concat([self.fifo_positions, pd.DataFrame([row])])
 
-                        position_open = False
+                        # As I have a Case where IB changed the underlying symbol name, I need to do a seperate check
+                        # this is covered in the test case SPECIAL_CASE_DELL
+                        if row["activityCode"] == "EXP":  # currently only the case for expirations
+                            find_addition = row["underlyingSymbol"].rfind("1")  # check if there is a 1 at the end
+                            if find_addition > 0:  # if yes
+                                cleaned_string = row["underlyingSymbol"][:-1]  # get the correct string
+                                correct_entry = row["symbol"].replace(row["underlyingSymbol"], cleaned_string + " ")
+
+                                # now, check again if I have an open position
+                                if correct_entry in self.fifo_positions["symbol"].values:
+                                    position_open = True
+                                    open_in_depot = self.fifo_positions[self.fifo_positions["symbol"] == correct_entry]
+                                    row["symbol"] = correct_entry
+                                else:
+                                    self.fifo_positions = pd.concat([self.fifo_positions, pd.DataFrame([row])])
+                                    position_open = False
+                        else:
+                            self.fifo_positions = pd.concat([self.fifo_positions, pd.DataFrame([row])])
+                            position_open = False
             else:
                 if self.fifo_positions.isin([row["activityDescription"]]).any().any():
                     position_open = True
@@ -755,7 +801,7 @@ class BookingStatementHandler:
                                 self.book_statement(row=row, id="ATG_0000004_0000004",
                                                     desc="Zuteilung einer verkauften Optionsposition",
                                                     sdesc="Erhöhung der Shortposition",
-                                                    amount=row["amount"], soll=1500, haben=bank_account_id,
+                                                    amount=row["amount"], soll=1510, haben=bank_account_id,
                                                     account_id=account_id, quality_check_relevant=True)
 
                                 self.add_open_position(row)  # Eintrag in den offenen Posten
@@ -777,7 +823,7 @@ class BookingStatementHandler:
 
                 self.book_statement(row=row, id="ATG_0000010_0000001",
                                     desc="Investitionszinsen ", sdesc="Zinszahlung",
-                                    amount=row["amount"], soll=6850, haben=bank_account_id, account_id=account_id,
+                                    amount=row["amount"], soll=7300, haben=bank_account_id, account_id=account_id,
                                     quality_check_relevant=True)
 
             elif row["activityCode"] == "BUY":
@@ -814,9 +860,9 @@ class BookingStatementHandler:
 
                     # Fall 1: No open position => create long entry
                     if position_open == False:
-                        self.book_statement(row=row, id="Tbd",
+                        self.book_statement(row=row, id="ATG_0000002_0000003",
                                             desc="Optionkauf", sdesc="keine offene Position",
-                                            amount=row["amount"], soll=1300, haben=bank_account_id,
+                                            amount=row["amount"], soll=1510, haben=bank_account_id,
                                             account_id=account_id, quality_check_relevant=True)
                         # hier muss ich die offene Position manuell hinterlegen
                         self.add_open_position(row)
@@ -1085,7 +1131,7 @@ class BookingStatementHandler:
                         # If I'm long in the option, I need to close it FIFO
                         elif open_in_depot["tradeQuantity"].sum() > 0:
                             stock_adjustment, restbuchwert, einnahmen = self.close_position_fifo(
-                                "SELLTOCLOSESHORT", row, open_in_depot, stock_adjustment, restbuchwert, einnahmen,
+                                "SELLTOCLOSELONG", row, open_in_depot, stock_adjustment, restbuchwert, einnahmen,
                                 bank_account_id,
                                 account_id=account_id)
 
@@ -1103,7 +1149,7 @@ class BookingStatementHandler:
                         if open_in_depot["tradeQuantity"].sum() < 0:
                             self.book_statement(row=row, id="ATG_0000006_0000005",
                                                 desc="Aktienverkauf", sdesc="Erhöhung der Shortposition",
-                                                amount=row["amount"], soll=bank_account_id, haben=1500,
+                                                amount=row["amount"], soll=bank_account_id, haben=1510,
                                                 account_id=account_id, quality_check_relevant=True)
 
                             self.add_open_position(row)
