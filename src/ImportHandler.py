@@ -2,6 +2,7 @@ import os
 import xml.etree.ElementTree as eTree
 from contextlib import suppress
 
+import pandas as pd
 from ib_insync import FlexReport
 from ib_insync import util
 from ib_insync.objects import DynamicObject
@@ -17,6 +18,8 @@ class ImportHandler:
         dir = self.dir.get_working_dir()
         self.dir_pickle_file = os.path.join(dir, "working_files", "cleaned_data.pkl")
         self.dir_excel_backup = os.path.join(dir, "working_files", "ib_statement_prepared.xlsx")
+        self.dir_pickle_file_open_positions = os.path.join(dir, "working_files", "open_positions.pkl")
+        self.dir_open_position_backup = os.path.join(dir, "working_files", "open_positions.xlsx")
         self.dir_import = os.path.join(dir, "import")
         self.data = None
         self.root = None
@@ -104,6 +107,24 @@ class ImportHandler:
         funds = self.__prepare_dataframe__("StatementOfFundsLine")
         cleaned_data = self.__clean_StatementOfFundsLine__(funds)
         return cleaned_data
+
+    def import_open_position(self, account, open_position_filename):
+        ''' Hier importiere ich offene Positionen, sollten diese vorhanden sein '''
+
+        path_import_file = os.path.join(self.dir_import, open_position_filename)
+        data = pd.read_excel(path_import_file, engine='openpyxl')
+
+        dir_pickle_file_open_positions = os.path.join(self.dir.get_working_dir(), "working_files",
+                                                      f"OpenPositions_{account}.pkl")
+        dir_open_position_backup = os.path.join(self.dir.get_working_dir(), "working_files",
+                                                f"OpenPositions_{account}.xlsx")
+
+        data.to_excel(dir_open_position_backup)
+        data.to_pickle(dir_pickle_file_open_positions)
+
+        print(f"The open positions were loaded successfully and stored as OpenPositions_{account}....")
+
+        return data
 
     def import_ib_xml_automatic(self, token, queryid):  # TODO, habe ich explzit ausgebaut, muss hier einmal die Dinge
         # anpassen dass ich auch die einzelnen Punkte zu verschiedenen Punkten laden kann

@@ -7,17 +7,18 @@ import pandas as pd
 
 from src.PathHandler import PathHandler
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.ERROR)
 debug = False
 save_to_excel = True
 
 
 class BookingStatementHandler:
 
-    def __init__(self, accounts_to_process, account_mapping):
+    def __init__(self, accounts_to_process, account_mapping, start_date, end_date):
         # Zuerst muss ich die Pfade erstellen
         self.dir = PathHandler()
         dir = self.dir.get_working_dir()
+        self.pickle_files = os.path.join(dir, "working_files")
         self.dir_pickle_file = os.path.join(dir, "working_files", "cleaned_data.pkl")
         self.dir_excel_backup = os.path.join(dir, "working_files", "ib_statement_prepared.xlsx")
         self.dir_import = os.path.join(dir, "import")
@@ -31,6 +32,9 @@ class BookingStatementHandler:
         self.processed_entries = pd.DataFrame()
         self.qualitycheck = pd.DataFrame()
         self.account_mapping = account_mapping
+
+        self.start = start_date
+        self.end = end_date
 
         # Quality Check: Hier prüfe ich, ob alle Accounts angegeben wurden
         self.accounts = self.read_accounts()
@@ -455,8 +459,8 @@ class BookingStatementHandler:
 
                     if identifier == "l":
                         self.book_statement(row=row, id="ATG_0000001_0000002",
-                                            dsc="Schließen einer verkauften Optionsposition",
-                                            sesc="Ausbuchen der Verbindlichkeit",
+                                            desc="Schließen einer verkauften Optionsposition",
+                                            sdesc="Ausbuchen der Verbindlichkeit",
                                             amount=amount_to_sell, soll=3500, haben=bank_account_id,
                                             account_id=account_id, quality_check_relevant=True)
                         self.book_statement(row=row, id="ATG_0000001_0000003",
@@ -665,10 +669,13 @@ class BookingStatementHandler:
             s = pd.DataFrame()
         return s
 
-    def generate_single_statements(self, data):
+    def generate_single_statements(self, data, open):
         ''' In dieser Methode prüfe ich nun die einzelnen Datensätze und erstelle hier,
             basierend auf den einzelnen Buchungsvorschriften und Fällen die
             einzelnen Buchungssätze '''
+
+        # Setzen der open files des accounts
+        self.fifo_positions = open
 
         # Da IB auch Teilverkäufe vornimmt, habe ich hier einen Abgleich eingebaut,
         # der mir ermöglicht über die einzelen Zeilen hinweg die Trades zu verbuchen
@@ -1188,7 +1195,8 @@ class BookingStatementHandler:
     def generate_booking_journal(self, accounts_to_combine, types_to_process=None):
         ''' Das ist die Hauptmethode, hier wird der Ablauf gesteuert um das Buchungssjournal zu erstellen'''
 
-        # Einlesen der Daten, die verarbeitet werden sollen
+        # Einlesen der Daten, die verarbeitet werden sollen, die offenen Positionen werden
+        # weiter unten pro Account eingelesen
         imported_data = self.imported_data
         modified_data = imported_data
         results = []
@@ -1209,9 +1217,6 @@ class BookingStatementHandler:
         self.accounts = list(set(self.accounts))
         logging.debug(f"Die folgenden Accounts werden berücksichtigt: {self.accounts}")
 
-        # Sortieren der Einträge nach dem Datum um diese sauber zu berechnen
-        modified_data = modified_data.sort_values("date", ascending=True)
-
         # Jeder Account wird einzeln betrachtet da für jeden das FIFO Prinzip gesondert gilt!
         for account in self.accounts:
             logging.info(f"The following account will now be processed: {account} .........")
@@ -1220,8 +1225,7 @@ class BookingStatementHandler:
             data = modified_data[modified_data["accountId"] == account]
             self.modified_data = data
 
-            # Schritt 1:
-            # Löschen der IB-Internen Statuszeilen:
+            # Schritt 01: Löschen der IB-Internen Statuszeilen:
             # - Starting Balance
             # - FX Translation P&L
             # - Ending Balance
@@ -1229,36 +1233,39 @@ class BookingStatementHandler:
             data = data[(data["activityDescription"] != "FX Translations P&L")]
             data = data[(data["activityDescription"] != "Ending Balance")]
 
-            # Schritt 2:
-            # Löschen der Bankbewegungen, diese müssen manuell gebucht werden um Doppelbuchungen zu vermeiden
-            # TODO: hier muss ich noch den Buchhungssatz für den Transfer zwischen den IB-Accounts einbauen
+            # Schritt 02: Löschen der Bankbewegungen
+            # Diese müssen manuell gebucht werden um Doppelbuchungen zu vermeiden
+            # TODO: hier kann ich noch den Buchhungssatz für den Transfer zwischen den IB-Accounts einbauen
             bank_transfers = data[(data["activityCode"] == "WITH") | (data["activityCode"] == "DEP")]
             data = data[~data.isin(bank_transfers)].dropna()
 
-            # list_to_check = [630804647, 630811767]
+            # Schritt 03: Sortieren der Buchungen nach der Transaktions-ID um Fehlbuchungen zu vermeiden
+            data.sort_values(by='transactionID', ascending=True, inplace=True)
+
+            ##################################################################################################
+            # Debug Hilfen
+            # list_to_check = [400141989, ]
             # data = data.loc[data["transactionID"].isin(list_to_check)]
 
             # list_to_check = ["STK"]
             # data = data.loc[data["assetCategory"].isin(list_to_check)]
+            # data = data.loc[data["symbol"].isin(["UA",])]
+            ##################################################################################################
 
-            # Schritt 3:
-            # Nach den Veränderungen sortiere ich nach dem SettleDate und der TransaktionsID um die richtige
-            # Verbuchung sicherzustellen
-            data = data.sort_values(["settleDate", "transactionID", ], ascending=True)
+            # Schritt 04: Laden der offenen Positionen
+            open_filename = os.path.join(self.pickle_files, f"OpenPositions_{account}.pkl")
+            open = pd.read_pickle(open_filename)
 
-            # Schritt 4:
-            # Erstellen der einzelnen Buchungsdaten => Methode: Generate Single Statements
-            open = pd.DataFrame()
-            data, journal, open = self.generate_single_statements(data)
+            # Schritt 05: Erstellen der einzelnen Buchungsdaten => Methode: Generate Single Statements
+            data, journal, open = self.generate_single_statements(data, open)
 
-            # Schritt 5:
-            # Löschen der einzenen, nicht relevanten Einträge aus der Open-Trade Liste,
+            # Schritt 06: Löschen der einzenen, nicht relevanten Einträge aus der Open-Trade Liste,
             # wie z.B. die Dividendenzahlungen, Margin Variation Zahlungen, etc.
             open = self.delete_selected_fifo_positions(open)
 
-            # Schritt 6: Quality Checks und Fehlerhandling!
+            # Schritt 07: Quality Checks und Fehlerhandling!
 
-            # Schritt 6.1. - Abgleich der Salden aus den einzelnen Datenlisten
+            # Schritt 07.01. - Abgleich der Salden aus den einzelnen Datenlisten
             modified_data_amount = round(sum(abs(data["amount"])), 2)
 
             if journal.empty:
@@ -1285,7 +1292,7 @@ class BookingStatementHandler:
                   f"die Journalsummer ist {journal_data_amount} und "
                   f"die der verabrbeiteten Daten ist {modified_data_amount}, Account {account}")
 
-            # Schritt 6.2. - Prüfung ob alle Zeilen verarbeitet wurden
+            # Schritt 07.2. - Prüfung ob alle Zeilen verarbeitet wurden
             # Die Daten, die in den "modified data" waren und nicht in den processed IDs aufgenommen wurden
             # wurden nicht verarbeitet. Optimalerweise sind alle zeilen verarbeitet worden
 
@@ -1298,7 +1305,7 @@ class BookingStatementHandler:
             except ValueError:
                 not_processed = data["transactionID"]
 
-            # Schritt 6.3. - Buchungsdatum berücksichtigen
+            # Schritt 07.3. - Buchungsdatum berücksichtigen
             # IB gibt nicht bei allen Zeilen ein Settle-Datum aus und daher nehme ich überall wo es ausgegeben wird,
             # das IB Buchungsdatum und wo es nicht ausgegeben wird das Datum was ein IB in dem Datumsfeld angibt
 
@@ -1306,23 +1313,22 @@ class BookingStatementHandler:
                 if row["SETTLEDATE"] == "":
                     journal.loc[index, "SETTLEDATE"] = row["DATE"]
 
-            # Schritt 7:
+            # Schritt 08:
             # Simultation der Buchhaltung und des Jahresabschlusses
             accounting = pd.DataFrame()
             if not journal.empty:
                 simulation_journal = journal[journal["Account"] == account]
                 accounting, account_summary, accounting_simulation_final = self.accounting_check(simulation_journal)
 
-            # Scrhitt
-            # Finale Validierung der Ergebnisse, fehlt etwas?
-            final_check = self.processing_check(self.processed_entries, self.modified_data)
-
-            # Schritt 7:
-            # Nun speichere ich die ganzen Daten noch in einer Excel um diese dann final abzulegen
+            # Schritt 09:
+            # Nun speichere ich die ganzen Daten noch in einer Excel, um diese dann final abzulegen
             if save_to_excel:
                 # create the writer object
                 path_to_store = os.path.join(self.dir_export, f"AccountingJournal_{account}.xlsx")
                 writer = pd.ExcelWriter(path_to_store, engine='xlsxwriter')
+                path_open_positions = os.path.join(self.dir_export, f"OpenPositions_{account}.xlsx")
+                writer_open_positions = pd.ExcelWriter(path_open_positions, engine='xlsxwriter')
+
                 # save the data to the excel
 
                 # Imported or Downloaded Data
@@ -1346,6 +1352,8 @@ class BookingStatementHandler:
                 if not open.empty:
                     df_to_store = open[open["accountId"] == account]
                     df_to_store.to_excel(writer, sheet_name=f"FIFO_Positions", index=False)
+                    df_to_store.to_excel(writer_open_positions, sheet_name=f"OpenPositions", index=False)
+                    writer_open_positions.save()
 
                 # Processed ID's
                 if not self.processed_entries.empty:
@@ -1359,14 +1367,19 @@ class BookingStatementHandler:
                     account_summary.to_excel(writer, sheet_name="Acc_Sim_2", index=False)
                     accounting_simulation_final.to_excel(writer, sheet_name="Acc_Sim_3", index=False)
 
-                # Not processed
-                # if not final_check.empty:
-                #    final_check.to_excel(writer, sheet_name="Not processed", index=False)
-
                 writer.save()
 
-            # Schritt 8:
+            # Schritt 10:
             # Erstellung der Buchungssatz - Importdatei
             if not journal.empty:
                 data_to_import = journal[journal["Account"] == account]
                 self.generate_MSBuchhalter_Import(data_to_import, account, self.dir_export)
+
+            # Schritt 11:
+            # Ausgabe der Informationen zum Abgleich mit den Testdaten
+            print(f'Journalsumme: {journal_data_amount}')
+            print(f'Verarbeitete Daten: {modified_data_amount}')
+            try:
+                print(f'Gewinn oder Verlust: {accounting_simulation_final["GuV_Final"][0]}')
+            except UnboundLocalError:
+                print("Gewinn oder Verlust: no statement calculated")

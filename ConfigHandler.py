@@ -1,3 +1,4 @@
+import datetime
 import os
 from configparser import ConfigParser
 
@@ -17,6 +18,11 @@ class ConfigHandler:
         with open('configuration.ini', 'w') as configfile:
             config.add_section('Import')
             config.set("Import", "Dateiname Kapitalflussbericht", "Kapitalflussbericht.xml")
+
+            config.add_section('Dates')
+            config.set("Dates", "start_date", "01.01.2021")
+            config.set("Dates", "end_date", "01.01.2021")
+
             config.add_section('Accounts')
             config.set("Accounts", "IB-Accounts", "U7876826, U4876826, U6834633")
 
@@ -29,12 +35,44 @@ class ConfigHandler:
             config.set("IBTransferMapping", "U4876826", "U7876826")
             config.write(configfile)
 
+            config.add_section('OpenPositions')
+            config.set("OpenPositions", "U7876826", "OpenPositions_U7876826.xlsx")
+            config.set("OpenPositions", "U6834633", "OpenPositions_U6834633")
+
+            config.write(configfile)
+
     def read_config(self):
         settings = ConfigParser()
         path = os.path.join(self.dir, "configuration.ini")
         settings.read(path)
 
         return settings
+
+    def get_start_date(self):
+        try:
+            settings = self.read_config()
+            entry = settings["Dates"]["start_date"]
+            entry = datetime.datetime.strptime(entry, "%d.%m.%Y")
+            entry = entry.strftime("%Y%m%d")
+
+        except KeyError:
+            entry = ""
+            print(self.dir)
+
+        return entry
+
+    def get_end_date(self):
+        try:
+            settings = self.read_config()
+            entry = settings["Dates"]["end_date"]
+            entry = datetime.datetime.strptime(entry, "%d.%m.%Y")
+            entry = entry.strftime("%Y%m%d")
+
+        except KeyError:
+            entry = ""
+            print(self.dir)
+
+        return entry
 
     def get_statement_of_funds_name(self):
 
@@ -84,16 +122,25 @@ class ConfigHandler:
 
         return dict
 
-    # accounts_to_process = ["U7876826", "U4876826", "U6834633"]
+    def get_file_open_positions_name(self):
+        settings = self.read_config()
+
+        dict = {}
+
+        for acc in self.get_ib_accounts():
+            try:
+                dict[acc] = settings["OpenPositions"][acc]
+            except KeyError:
+                print("As you did not map all accounts to open positions, please check if this is correct!")
+
+        return dict
 
 
 if __name__ == '__main__':
     ch = ConfigHandler()
-    ch.write_config()
+    # ch.write_config()
     ch.read_config()
     ch.get_statement_of_funds_name()
-    x = ch.get_ib_to_accounting_map()
-
-    x = ch.get_ib_acc_combination()
+    x = ch.get_file_open_positions_name()
 
     print(x)
