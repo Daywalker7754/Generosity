@@ -131,7 +131,7 @@ class ConfigHandler:
             try:
                 dict[acc] = settings["OpenPositions"][acc]
             except KeyError:
-                print("As you did not map all accounts to open positions, please check if this is correct!")
+               pass
 
         return dict
 

@@ -1239,8 +1239,11 @@ class BookingStatementHandler:
             bank_transfers = data[(data["activityCode"] == "WITH") | (data["activityCode"] == "DEP")]
             data = data[~data.isin(bank_transfers)].dropna()
 
-            # Schritt 03: Sortieren der Buchungen nach der Transaktions-ID um Fehlbuchungen zu vermeiden
+            # Schritt 03: Sortieren der Buchungen nach der Transaktions-ID um Fehlbuchungen zu vermeiden und
+            # filtern der Daten nach dem Datum
             data.sort_values(by='transactionID', ascending=True, inplace=True)
+            data = data[data["date"] >= float(self.start)]
+            data = data[data["date"] <= float(self.end)]
 
             ##################################################################################################
             # Debug Hilfen
@@ -1314,7 +1317,7 @@ class BookingStatementHandler:
                     journal.loc[index, "SETTLEDATE"] = row["DATE"]
 
             # Schritt 08:
-            # Simultation der Buchhaltung und des Jahresabschlusses
+            # Simulation der Buchhaltung und des Jahresabschlusses
             accounting = pd.DataFrame()
             if not journal.empty:
                 simulation_journal = journal[journal["Account"] == account]
