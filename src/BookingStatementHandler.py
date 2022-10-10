@@ -936,11 +936,22 @@ class BookingStatementHandler:
 
                 # Zinsen
                 if (row["symbol"] == "") and "CFD INTEREST" in row["activityDescription"]:
-                    self.book_statement(row=row, id="ATG_0000010_0000005",
-                                        desc="CFD-Handel", sdesc="Zinsaufwendung",
-                                        amount=row["amount"], soll=7300, haben=bank_account_id, account_id=account_id,
-                                        quality_check_relevant=True, text=row["activityDescription"])
-                    self.close_open_position(row["transactionID"])
+
+                    if row["amount"] <= 0:
+                        self.book_statement(row=row, id="ATG_0000009_0000001",
+                                            desc="CFD-Handel", sdesc="Zinsaufwendung",
+                                            amount=row["amount"], soll=7300, haben=bank_account_id,
+                                            account_id=account_id,
+                                            quality_check_relevant=True, text=row["activityDescription"])
+                        self.close_open_position(row["transactionID"])
+
+                    elif row["amount"] > 0:
+                        self.book_statement(row=row, id="ATG_0000009_0000002",
+                                            desc="CFD-Handel", sdesc="Zinsgewinne",
+                                            amount=row["amount"], soll=bank_account_id, haben=7300,
+                                            account_id=account_id,
+                                            quality_check_relevant=True, text=row["activityDescription"])
+                        self.close_open_position(row["transactionID"])
 
                 # Kursdifferenzen
                 if (row["symbol"] != "") and "USD" in row["activityDescription"]:
@@ -1250,9 +1261,40 @@ class BookingStatementHandler:
             # list_to_check = [400141989, ]
             # data = data.loc[data["transactionID"].isin(list_to_check)]
 
-            # list_to_check = ["STK"]
+            list_to_check = ["OFEE", ]
             # data = data.loc[data["assetCategory"].isin(list_to_check)]
+            data = data.loc[data["activityCode"].isin(list_to_check)]
             # data = data.loc[data["symbol"].isin(["UA",])]
+
+            ##################################################################################################
+
+            # Quality Check - IB Report: Cash Report - Broker Interest Paid and Received
+            # list_to_check = ["DINT", "CINT", "BFEE"]
+            # data = data.loc[data["activityCode"].isin(list_to_check)]
+
+            # Quality Check - IB Report: Cash Report - Dividends
+            # list_to_check = ["DIV",]
+            # data = data.loc[data["activityCode"].isin(list_to_check)]
+
+            # Quality Check - IB Report: Cash Report - Withholding Tax
+            # list_to_check = ["FRTAX",]
+            # data = data.loc[data["activityCode"].isin(list_to_check)]
+
+            # Quality Check - IB Report: Cash Report - Sales Tax
+            # list_to_check = ["STAX",]
+            # data = data.loc[data["activityCode"].isin(list_to_check)]
+
+            # Quality Check - IB Report: Cash Report - CFD Charges
+            # list_to_check = ["CFD",]
+            # data = data.loc[data["activityCode"].isin(list_to_check)]
+
+            # Quality Check - IB Report: Cash Report - Other Fees
+            # list_to_check = ["OFEE",]
+            # data = data.loc[data["activityCode"].isin(list_to_check)]
+
+            # Quality Check - IB Report: Commissions
+            print(f"The trade commission in total is {data['tradeCommission'].sum()}")
+
             ##################################################################################################
 
             # Schritt 04: Laden der offenen Positionen
