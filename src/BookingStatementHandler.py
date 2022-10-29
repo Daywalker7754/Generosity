@@ -1261,9 +1261,9 @@ class BookingStatementHandler:
             # list_to_check = [400141989, ]
             # data = data.loc[data["transactionID"].isin(list_to_check)]
 
-            list_to_check = ["OFEE", ]
+            # list_to_check = ["OFEE", ]
             # data = data.loc[data["assetCategory"].isin(list_to_check)]
-            data = data.loc[data["activityCode"].isin(list_to_check)]
+            # data = data.loc[data["activityCode"].isin(list_to_check)]
             # data = data.loc[data["symbol"].isin(["UA",])]
 
             ##################################################################################################
